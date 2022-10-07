@@ -20,6 +20,16 @@ def GBM_Euler(T, S, sigma, r, M):
     return S_all
 
 
+def GBM_exact(T, K, S, sigma, r, M):
+    S_all = []
+    S_all.append(S)
+    dt = T/M
+    Zm = np.random.normal(size=M)
+    for i in range(M-1):
+        S_all.append(S_all[i] * np.exp((r-0.5*sigma**2) * dt + sigma * np.sqrt(dt) * Zm[i])) 
+    return S_all
+
+
 def value_option_schwarz(M,K,path_matrix, r, realizations, order=2,option="call", poly_choice="laguerre"):
     '''
     Longstaff-Scharwz option pricer
