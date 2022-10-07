@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import odr
+from scipy.stats import norm
 
 def GBM_Euler(T, S, sigma, r, M):
     '''
@@ -30,11 +31,11 @@ def GBM_exact(T, K, S, sigma, r, M):
     return S_all
 
 
-def value_option_schwarz(M,K,path_matrix, r, realizations, order=2,option="call", poly_choice="laguerre"):
+def value_option_schwarz(T,M,K,path_matrix, r, realizations, order=2,option="call", poly_choice="laguerre"):
     '''
     Longstaff-Scharwz option pricer
     '''
-    
+    dt = T/M
     stopping_rule = np.zeros(path_matrix.shape)
     cash_flows = np.zeros(path_matrix.shape)
     
@@ -61,7 +62,7 @@ def value_option_schwarz(M,K,path_matrix, r, realizations, order=2,option="call"
             
         X_nonzero = X[X>0]
         Y_nonzero = Y[X>0]
-        Y_nonzero *= np.exp(-r * (M-time))
+        Y_nonzero *= np.exp(-r * (dt*time))
         #Y_nonzero -= -20
         
         
@@ -91,14 +92,14 @@ def value_option_schwarz(M,K,path_matrix, r, realizations, order=2,option="call"
                     if ex_cont[j,0] > ex_cont[j,1]:
                         stopping_rule[i,:] = 0
                         stopping_rule[i,M-time-1] = 1
-                        cash_flows[i, M-time] = 0
+                        cash_flows[i, :] = 0
                         cash_flows[i, M-time-1] = ex_cont[j,0]
-                    j+=1             
+                    j+=1      
         else:
             print(f"time: {time}")
             print("No path in-the-money-path found. Convergence issues expected")
     
-    return stopping_rule * exercise_value
+    return stopping_rule * exercise_value, cash_flows
 
 def poly(x):
     return (-1.813 * x**2 + 2.983 *x -1.07)
@@ -223,3 +224,31 @@ def value_option_bermudan(M,K,path_matrix, r, realizations, exercise_dates, opti
     
     
     return option_cash_flow_matrix
+
+
+def BSM_call(s_t, k, r, vol, dt):
+    d_1_c = (1 / (vol * (dt ** 0.5))) 
+    d1_log =  (np.log((s_t)/(k)) + ((r + (vol ** 2) / 2) * dt))
+    d_1 = d_1_c * d1_log
+    d_2 = d_1 - vol * (dt ** 0.5)
+    return (np.multiply(norm.cdf(d_1),  s_t) - (norm.cdf(d_2) * k * np.exp(-r * dt)))
+
+def BSM_put(s_t, k, r, vol, dt):
+    d_1_c = (1 / (vol * (dt ** 0.5))) 
+    d1_log =  (np.log((s_t)/(k)) + ((r + (vol ** 2) / 2) * dt))
+    d_1 = d_1_c * d1_log
+    d_2 = d_1 - vol * (dt ** 0.5)
+    return ((norm.cdf(-d_2) * k * np.exp(-r * dt)) - np.multiply(norm.cdf(-d_1),  s_t))
+
+def identify_positions(wt_list, strike_list):
+    positions = np.where(np.logical_and(wt_list>0, strike_list<0), "C", 
+                        np.where(np.logical_and(wt_list>0, strike_list>=0), "F", 
+                                 np.where(np.logical_and(wt_list<0, strike_list>0), "P", "N")))
+    
+    pos = (np.array(np.unique(positions, return_counts=True)).T)
+    no_of_pos_dict = {"C":0 , "P":0, "F":0 , "N":0 }
+    
+    for i in range(0, len(pos[:,0])):
+        no_of_pos_dict[pos[i,0]] = int(pos[i,1])
+
+    return no_of_pos_dict["C"], no_of_pos_dict["P"], no_of_pos_dict["F"], no_of_pos_dict["N"], positions
